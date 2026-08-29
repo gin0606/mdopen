@@ -6,7 +6,6 @@ rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-base64 = "0.22"
 comrak = { version = "0.54", default-features = false, features = [
     "shortcodes",
     "syntect-fancy",
