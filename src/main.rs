@@ -4,6 +4,16 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+const USAGE: &str = "usage: mdo <file.md>";
+
+const HELP: &str = "\
+Markdown を HTML 1 枚に変換して、既定のブラウザで開く。
+
+usage: mdo <file.md>
+
+options:
+  -h, --help  使い方を表示する";
+
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -19,6 +29,17 @@ fn run() -> Result<(), Error> {
     let (Some(input), None) = (args.next(), args.next()) else {
         return Err(Error::Usage);
     };
+
+    // 引数はファイル 1 つだけなので、`--` 区切りは持たない。`-foo.md` は `./-foo.md` で開く。
+    if let Some(flag) = input.to_str().filter(|arg| arg.starts_with('-')) {
+        return match flag {
+            "-h" | "--help" => {
+                println!("{HELP}");
+                Ok(())
+            }
+            _ => Err(Error::Usage),
+        };
+    }
 
     let source = Path::new(&input)
         .canonicalize()
@@ -109,7 +130,7 @@ enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Usage => write!(f, "usage: mdo <file.md>"),
+            Error::Usage => write!(f, "{USAGE}"),
             Error::Read { path, source } => write!(f, "{} を読めません: {source}", path.display()),
             Error::NotUtf8 { path } => write!(f, "{} が UTF-8 ではありません", path.display()),
             Error::Write { path, source } => {
