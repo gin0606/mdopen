@@ -104,7 +104,7 @@ pub fn render(markdown: &str, title: &str, base_dir: &Path) -> Rendered {
     warnings.append(&mut images.warnings.lock().expect("poison しない"));
 
     Rendered {
-        html: assemble(title, &body, has_mermaid),
+        html: assemble(title, &body, has_mermaid, &warnings),
         warnings,
     }
 }
@@ -303,7 +303,23 @@ fn percent_decode(input: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-fn assemble(title: &str, body: &str, has_mermaid: bool) -> String {
+/// 警告をページの先頭に出す。標準エラーは Finder からの起動では捨てられるので、
+/// 変換したページ自身が唯一確実に届く経路になる。
+fn warning_banner(warnings: &[String]) -> String {
+    if warnings.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::from("<aside class=\"mdo-warnings\">\n<ul>\n");
+    for warning in warnings {
+        // 警告文には md 由来の文字列が入る。素通しすると file:// のページで実行される。
+        let _ = writeln!(out, "<li>{}</li>", escape_html(warning));
+    }
+    out.push_str("</ul>\n</aside>\n");
+    out
+}
+
+fn assemble(title: &str, body: &str, has_mermaid: bool, warnings: &[String]) -> String {
     let mut html = String::with_capacity(body.len() + STYLE_CSS.len() + 1024);
 
     html.push_str("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n");
@@ -311,6 +327,7 @@ fn assemble(title: &str, body: &str, has_mermaid: bool) -> String {
     let _ = write!(html, "<title>{}</title>\n<style>\n", escape_html(title));
     html.push_str(STYLE_CSS);
     html.push_str("</style>\n</head>\n<body>\n<article class=\"markdown-body\">\n");
+    html.push_str(&warning_banner(warnings));
     html.push_str(body);
     html.push_str("</article>\n");
 
@@ -555,6 +572,30 @@ mod tests {
             &testdata(),
         );
         assert_eq!(rendered.warnings.len(), 1);
+    }
+
+    #[test]
+    fn warnings_reach_the_page_itself() {
+        let rendered = render("![](images/missing.png)\n", "t.md", &testdata());
+        assert!(rendered.html.contains("<aside class=\"mdo-warnings\">"));
+        assert!(
+            rendered
+                .html
+                .contains("images/missing.png: 画像が見つかりません")
+        );
+    }
+
+    #[test]
+    fn a_document_without_warnings_gets_no_banner() {
+        let html = render_file("plain.md").html;
+        assert!(!html.contains("<aside class=\"mdo-warnings\">"));
+    }
+
+    #[test]
+    fn warning_text_is_escaped() {
+        let html = render_str("![](a<script>alert(1)</script>.png)\n");
+        assert!(html.contains("<aside class=\"mdo-warnings\">"), "{html}");
+        assert!(!html.contains("<script>alert"), "{html}");
     }
 
     #[test]

@@ -348,3 +348,21 @@ body {
 .markdown-body [data-footnote-ref]::after {
   content: "]";
 }
+
+/* mdo からの警告 */
+
+/* 文書の内容ではなく変換した側からの通知なので、アラートとは別の見た目にする。 */
+.markdown-body .mdo-warnings {
+  margin-bottom: 2em;
+  padding: 0.5em 1em;
+  border: 1px solid #e6d5a8;
+  border-radius: 6px;
+  background-color: #fdf8ec;
+  color: #6b5312;
+  font-size: 0.875em;
+}
+
+.markdown-body .mdo-warnings ul {
+  margin: 0;
+  padding-left: 1.5em;
+}
