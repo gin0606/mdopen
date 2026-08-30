@@ -33,7 +33,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
     /// 同梱の `mdo` を起動して待つ。失敗したときだけ、利用者に見せるメッセージを返す。
     private func convert(_ path: String) -> String? {
         let tool = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/Resources/mdo")
+            .appendingPathComponent("Contents/MacOS/mdo")
 
         let process = Process()
         process.executableURL = tool
