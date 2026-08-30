@@ -353,10 +353,10 @@ body {
   content: "]";
 }
 
-/* mdo からの警告 */
+/* mdopen からの警告 */
 
 /* 文書の内容ではなく変換した側からの通知なので、アラートとは別の見た目にする。 */
-.markdown-body .mdo-warnings {
+.markdown-body .mdopen-warnings {
   margin-bottom: 2em;
   padding: 0.5em 1em;
   border: 1px solid #e6d5a8;
@@ -366,7 +366,7 @@ body {
   font-size: 0.875em;
 }
 
-.markdown-body .mdo-warnings ul {
+.markdown-body .mdopen-warnings ul {
   margin: 0;
   padding-left: 1.5em;
 }

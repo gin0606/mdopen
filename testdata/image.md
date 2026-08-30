@@ -12,7 +12,7 @@
 
 リモート URL はそのまま残す:
 
-![shields](https://img.shields.io/badge/mdo-markdown-blue)
+![shields](https://img.shields.io/badge/mdopen-markdown-blue)
 
 解決できないパスは記述のまま残して変換は成功させる:
 

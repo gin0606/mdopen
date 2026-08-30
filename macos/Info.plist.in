@@ -5,13 +5,13 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>mdo-launcher</string>
+	<string>mdopen-launcher</string>
 	<key>CFBundleIdentifier</key>
-	<string>me.gin0606.mdo</string>
+	<string>me.gin0606.mdopen</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>mdo</string>
+	<string>mdopen</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

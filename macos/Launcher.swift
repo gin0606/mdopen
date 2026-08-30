@@ -1,12 +1,12 @@
 import AppKit
 import OSLog
 
-/// Finder から渡されたファイルを、bundle 同梱の `mdo` に流して終了するだけのランチャ。
+/// Finder から渡されたファイルを、bundle 同梱の `mdopen` に流して終了するだけのランチャ。
 final class Launcher: NSObject, NSApplicationDelegate {
     /// ファイルを渡されずに直接起動されたときに居座らないためのタイムアウト。
     private static let idleTimeout: TimeInterval = 3
 
-    private static let log = Logger(subsystem: "me.gin0606.mdo", category: "convert")
+    private static let log = Logger(subsystem: "me.gin0606.mdopen", category: "convert")
 
     private var receivedFiles = false
 
@@ -30,10 +30,10 @@ final class Launcher: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    /// 同梱の `mdo` を起動して待つ。失敗したときだけ、利用者に見せるメッセージを返す。
+    /// 同梱の `mdopen` を起動して待つ。失敗したときだけ、利用者に見せるメッセージを返す。
     private func convert(_ path: String) -> String? {
         let tool = Bundle.main.bundleURL
-            .appendingPathComponent("Contents/MacOS/mdo")
+            .appendingPathComponent("Contents/MacOS/mdopen")
 
         let process = Process()
         process.executableURL = tool
@@ -45,7 +45,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         do {
             try process.run()
         } catch {
-            return "mdo を起動できません: \(error.localizedDescription)"
+            return "mdopen を起動できません: \(error.localizedDescription)"
         }
 
         // waitUntilExit より先に読み切らないと、パイプが埋まったときに詰まる。
@@ -55,7 +55,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         let message = String(data: stderr, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-        // mdo は成功時にも警告を出す。LaunchServices 経由の起動では標準エラーが捨てられるので、
+        // mdopen は成功時にも警告を出す。LaunchServices 経由の起動では標準エラーが捨てられるので、
         // ダイアログで遮らずに残すには unified log に書くしかない。
         if !message.isEmpty {
             Launcher.log.notice("\(message, privacy: .public)")
@@ -64,7 +64,7 @@ final class Launcher: NSObject, NSApplicationDelegate {
         guard process.terminationStatus != 0 else { return nil }
 
         return message.isEmpty
-            ? "mdo が終了コード \(process.terminationStatus) で終了しました"
+            ? "mdopen が終了コード \(process.terminationStatus) で終了しました"
             : message
     }
 

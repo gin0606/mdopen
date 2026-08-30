@@ -119,7 +119,7 @@ pub fn output_path(source: &Path) -> PathBuf {
         let _ = write!(name, "{byte:02x}");
     }
     name.push_str(".html");
-    std::env::temp_dir().join("mdo").join(name)
+    std::env::temp_dir().join("mdopen").join(name)
 }
 
 fn markdown_options() -> Options<'static> {
@@ -310,7 +310,7 @@ fn warning_banner(warnings: &[String]) -> String {
         return String::new();
     }
 
-    let mut out = String::from("<aside class=\"mdo-warnings\">\n<ul>\n");
+    let mut out = String::from("<aside class=\"mdopen-warnings\">\n<ul>\n");
     for warning in warnings {
         // 警告文には md 由来の文字列が入る。素通しすると file:// のページで実行される。
         let _ = writeln!(out, "<li>{}</li>", escape_html(warning));
@@ -477,7 +477,7 @@ mod tests {
         assert!(
             rendered
                 .html
-                .contains("src=\"https://img.shields.io/badge/mdo-markdown-blue\"")
+                .contains("src=\"https://img.shields.io/badge/mdopen-markdown-blue\"")
         );
         // 見つからない画像はブラウザ上で壊れるだけなので、理由を伝える
         assert_eq!(
@@ -577,7 +577,7 @@ mod tests {
     #[test]
     fn warnings_reach_the_page_itself() {
         let rendered = render("![](images/missing.png)\n", "t.md", &testdata());
-        assert!(rendered.html.contains("<aside class=\"mdo-warnings\">"));
+        assert!(rendered.html.contains("<aside class=\"mdopen-warnings\">"));
         assert!(
             rendered
                 .html
@@ -588,13 +588,13 @@ mod tests {
     #[test]
     fn a_document_without_warnings_gets_no_banner() {
         let html = render_file("plain.md").html;
-        assert!(!html.contains("<aside class=\"mdo-warnings\">"));
+        assert!(!html.contains("<aside class=\"mdopen-warnings\">"));
     }
 
     #[test]
     fn warning_text_is_escaped() {
         let html = render_str("![](a<script>alert(1)</script>.png)\n");
-        assert!(html.contains("<aside class=\"mdo-warnings\">"), "{html}");
+        assert!(html.contains("<aside class=\"mdopen-warnings\">"), "{html}");
         assert!(!html.contains("<script>alert"), "{html}");
     }
 

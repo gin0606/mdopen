@@ -1,4 +1,4 @@
-app := "target/mdo.app"
+app := "target/mdopen.app"
 
 # 版は git tag が唯一の真実。`just version=X.Y.Z ...` で明示的に上書きできる。
 # just の変数は環境変数から上書きされないので、VERSION が他の用途で export されて
@@ -12,8 +12,8 @@ version := `v=$(git describe --tags --exact-match --match 'v[0-9]*' 2>/dev/null 
 # 配布するのは arm64 のみ。ここから引くので、組んだものと名乗る名前が食い違わない。
 arch := "arm64"
 rust_target := if arch == "arm64" { "aarch64-apple-darwin" } else if arch == "x86_64" { "x86_64-apple-darwin" } else { error("arch は arm64 か x86_64 のどちらか") }
-app_dist := "target/mdo.app-" + version + "-macos-" + arch + ".zip"
-cli_dist := "target/mdo-" + version + "-macos-" + arch + ".tar.gz"
+app_dist := "target/mdopen.app-" + version + "-macos-" + arch + ".zip"
+cli_dist := "target/mdopen-" + version + "-macos-" + arch + ".tar.gz"
 
 # 配布物は Developer ID で署名する。手元には鍵が無いので、識別名が渡されなければ
 # ad-hoc 署名に落とす。version と同じ理由で環境変数は見ない。
@@ -54,14 +54,14 @@ build: check-version
 # 同梱の CLI は bundle の主実行ファイルではないため、bundle への署名では署名され
 # ない。識別子を明示するのは、省略すると ad-hoc 署名だけハッシュ付きの名前になり、
 # 手元と CI で署名の中身がずれるため。
-[doc("CLI と Swift ランチャを組み合わせて mdo.app を組み立て、署名する")]
+[doc("CLI と Swift ランチャを組み合わせて mdopen.app を組み立て、署名する")]
 build-app: build
     rm -rf {{app}}
     mkdir -p {{app}}/Contents/MacOS
-    swiftc -O -target {{arch}}-apple-macos$({{just_executable()}} macos-min) -o {{app}}/Contents/MacOS/mdo-launcher macos/Launcher.swift
+    swiftc -O -target {{arch}}-apple-macos$({{just_executable()}} macos-min) -o {{app}}/Contents/MacOS/mdopen-launcher macos/Launcher.swift
     sed 's/@VERSION@/{{version}}/g' macos/Info.plist.in > {{app}}/Contents/Info.plist
-    cp target/{{rust_target}}/release/mdo {{app}}/Contents/MacOS/mdo
-    codesign --force {{codesign_options}} -i me.gin0606.mdo.cli --sign {{quote(sign_identity)}} {{app}}/Contents/MacOS/mdo
+    cp target/{{rust_target}}/release/mdopen {{app}}/Contents/MacOS/mdopen
+    codesign --force {{codesign_options}} -i me.gin0606.mdopen.cli --sign {{quote(sign_identity)}} {{app}}/Contents/MacOS/mdopen
     codesign --force {{codesign_options}} --sign {{quote(sign_identity)}} {{app}}
     codesign --verify --strict {{app}}
 
@@ -79,8 +79,8 @@ check-app: build-app
         exit 1
       fi
     done
-    reported=$({{app}}/Contents/MacOS/mdo --version)
-    if [ "$reported" != "mdo $version" ]; then
+    reported=$({{app}}/Contents/MacOS/mdopen --version)
+    if [ "$reported" != "mdopen $version" ]; then
       echo "同梱の CLI が '$reported' と名乗り、ビルドした版 $version と違います" >&2
       exit 1
     fi
@@ -150,7 +150,7 @@ dist-app: check-releasable check-app
 [doc("CLI 単体の配布物を作る")]
 dist-cli: check-releasable check-app
     rm -f {{cli_dist}}
-    COPYFILE_DISABLE=1 tar -czf {{cli_dist}} -C {{app}}/Contents/MacOS mdo
+    COPYFILE_DISABLE=1 tar -czf {{cli_dist}} -C {{app}}/Contents/MacOS mdopen
     @shasum -a 256 {{cli_dist}}
 
 # 公証は Apple のサーバとやりとりするので、鍵を持つリリースの workflow からしか

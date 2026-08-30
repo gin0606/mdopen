@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    A[mdo file.md] --> B[Markdown を解析]
+    A[mdopen file.md] --> B[Markdown を解析]
     B --> C{mermaid がある?}
     C -->|yes| D[mermaid.js を埋め込む]
     C -->|no| E[JS ゼロの HTML]
@@ -17,9 +17,9 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     participant U as 利用者
-    participant M as mdo
+    participant M as mdopen
     participant B as ブラウザ
-    U->>M: mdo plan.md
+    U->>M: mdopen plan.md
     M->>M: HTML に変換
     M->>B: open
     B-->>U: 表示

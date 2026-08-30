@@ -1,11 +1,11 @@
-# mdo の表示確認
+# mdopen の表示確認
 
-`mdo` が GFM の主な記法を描画できるかを目で見て確かめるためのファイル。
+`mdopen` が GFM の主な記法を描画できるかを目で見て確かめるためのファイル。
 
 ## 段落と強調
 
 **太字**、*斜体*、~~打ち消し~~、`インラインコード`。
-裸の URL も自動でリンクになる: https://github.com/gin0606/mdo
+裸の URL も自動でリンクになる: https://github.com/gin0606/mdopen
 
 絵文字ショートコード: :tada: :rocket: :sparkles:
 

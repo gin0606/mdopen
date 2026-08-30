@@ -1,5 +1,5 @@
 [package]
-name = "mdo"
+name = "mdopen"
 # 版は git tag が唯一の真実。ここは cargo が必須にしている項目なので固定値を置く
 # (`cargo install` はこの値を表示するが、リリースの版とは関係が無い)。
 version = "0.0.0"

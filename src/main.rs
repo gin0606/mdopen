@@ -4,12 +4,12 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: mdo <file.md>";
+const USAGE: &str = "usage: mdopen <file.md>";
 
 const HELP: &str = "\
 Markdown を HTML 1 枚に変換して、既定のブラウザで開く。
 
-usage: mdo <file.md>
+usage: mdopen <file.md>
 
 options:
   -h, --help     使い方を表示する
@@ -26,7 +26,7 @@ fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("mdo: {error}");
+            eprintln!("mdopen: {error}");
             ExitCode::FAILURE
         }
     }
@@ -46,7 +46,7 @@ fn run() -> Result<(), Error> {
                 Ok(())
             }
             "-V" | "--version" => {
-                println!("mdo {VERSION}");
+                println!("mdopen {VERSION}");
                 Ok(())
             }
             _ => Err(Error::Usage),
@@ -73,12 +73,12 @@ fn run() -> Result<(), Error> {
         .unwrap_or(source.as_os_str())
         .to_string_lossy();
     let base_dir = source.parent().unwrap_or(Path::new("."));
-    let rendered = mdo::render(&markdown, &title, base_dir);
+    let rendered = mdopen::render(&markdown, &title, base_dir);
     for warning in &rendered.warnings {
-        eprintln!("mdo: 警告: {warning}");
+        eprintln!("mdopen: 警告: {warning}");
     }
 
-    let destination = mdo::output_path(&source);
+    let destination = mdopen::output_path(&source);
     write_private(&destination, &rendered.html).map_err(|error| Error::Write {
         path: destination.clone(),
         source: error,
@@ -160,7 +160,7 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mdo-test-{}-{name}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("mdopen-test-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
