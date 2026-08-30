@@ -59,8 +59,8 @@ fn run() -> Result<(), Error> {
 
 /// 変換結果を書き出す。ディレクトリとファイルは所有者だけが読める権限で作る。
 ///
-/// 一時ディレクトリを他の利用者と共有する環境では、先に同名のディレクトリや symlink を
-/// 置かれると書き込み先をすり替えられる。macOS の `TMPDIR` は利用者ごとに分かれている。
+/// 出力先は入力パスから決まる予測可能な位置なので、一時ディレクトリを他の利用者と共有する
+/// 環境では、先に symlink を置かれると書き込み先をすり替えられる。
 fn write_private(path: &Path, html: &str) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         let mut directory = fs::DirBuilder::new();
@@ -70,19 +70,21 @@ fn write_private(path: &Path, html: &str) -> std::io::Result<()> {
         directory.create(parent)?;
     }
 
+    // symlink 自体を消す。指す先には触らない。
+    match fs::remove_file(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+
     let mut options = fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
+    // create_new は O_EXCL で開くので、symlink を辿らず、何かあればそこで失敗する。
+    // 必ず新規作成になるため、新規作成にしか効かない mode もそのまま効く。
+    options.write(true).create_new(true);
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
 
-    let mut file = options.open(path)?;
-    // mode は新規作成にしか効かないので、緩いまま残っていた既存ファイルを締め直す。
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        file.set_permissions(fs::Permissions::from_mode(0o600))?;
-    }
-    file.write_all(html.as_bytes())
+    options.open(path)?.write_all(html.as_bytes())
 }
 
 enum Error {
@@ -117,5 +119,51 @@ impl fmt::Display for Error {
                 write!(f, "{} をブラウザで開けません: {source}", path.display())
             }
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("mdo-test-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn mode_of(path: &Path) -> u32 {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn writing_does_not_follow_a_symlink() {
+        let dir = scratch("symlink");
+        let victim = dir.join("victim.txt");
+        let destination = dir.join("out.html");
+        fs::write(&victim, "victim").unwrap();
+        std::os::unix::fs::symlink(&victim, &destination).unwrap();
+
+        write_private(&destination, "<html>").unwrap();
+
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "victim");
+        assert_eq!(fs::read_to_string(&destination).unwrap(), "<html>");
+        assert_eq!(mode_of(&destination), 0o600);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn writing_replaces_the_previous_output() {
+        let dir = scratch("replace");
+        let destination = dir.join("out.html");
+
+        write_private(&destination, "old").unwrap();
+        write_private(&destination, "new").unwrap();
+
+        assert_eq!(fs::read_to_string(&destination).unwrap(), "new");
+        assert_eq!(mode_of(&destination), 0o600);
+        fs::remove_dir_all(&dir).unwrap();
     }
 }
