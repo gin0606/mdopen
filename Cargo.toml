@@ -1,6 +1,8 @@
 [package]
 name = "mdo"
-version = "0.1.0"
+# 版は git tag が唯一の真実。ここは cargo が必須にしている項目なので固定値を置く
+# (`cargo install` はこの値を表示するが、リリースの版とは関係が無い)。
+version = "0.0.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"

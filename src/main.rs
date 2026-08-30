@@ -12,7 +12,15 @@ Markdown を HTML 1 枚に変換して、既定のブラウザで開く。
 usage: mdo <file.md>
 
 options:
-  -h, --help  使い方を表示する";
+  -h, --help     使い方を表示する
+  -V, --version  版を表示する";
+
+/// 版は git tag が唯一の真実なので、justfile がビルド時に渡す。cargo から直接
+/// 組んだものはどの tag にも対応しないので、版を名乗らせない。
+const VERSION: &str = match option_env!("MDO_VERSION") {
+    Some(version) => version,
+    None => "dev",
+};
 
 fn main() -> ExitCode {
     match run() {
@@ -35,6 +43,10 @@ fn run() -> Result<(), Error> {
         return match flag {
             "-h" | "--help" => {
                 println!("{HELP}");
+                Ok(())
+            }
+            "-V" | "--version" => {
+                println!("mdo {VERSION}");
                 Ok(())
             }
             _ => Err(Error::Usage),
