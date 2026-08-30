@@ -1,3 +1,8 @@
+/* 配色はライト固定。ルートに宣言しないとスクロールバー等のブラウザ UI に伝わらない。 */
+:root {
+  color-scheme: light;
+}
+
 body {
   margin: 0;
   background-color: #ffffff;
@@ -8,7 +13,6 @@ body {
   max-width: 980px;
   margin: 0 auto;
   padding: 45px;
-  color-scheme: light;
   color: #222629;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
     "Hiragino Sans", "Noto Sans JP", Arial, sans-serif, "Apple Color Emoji",
