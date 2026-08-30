@@ -5,13 +5,11 @@ app := "target/mdo.app"
 # いる環境でも黙って乗っ取られない。
 # 厳密一致で引くのは、直近の tag を拾うと未 tag のコミットのビルドが released 版と
 # 同じ版・同じ配布物名を名乗ってしまうため。
-# x.y.z の形だけを版として認め、それ以外の tag は版タグ無しと同じ扱いにする。
 # git の ref 名は `"` や `$(` を含められるので、形を見ずに通すと、そういう tag の
 # 載ったコミットで just を動かしただけで任意のコマンドが走る。
 version := `v=$(git describe --tags --exact-match --match 'v[0-9]*' 2>/dev/null || true); v=${v#v}; if printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "$v"; else echo 0.0.0; fi`
 
-# 配布するのは arm64 のみ。配布物の名前・cargo の target・swiftc の三つ組を
-# すべてここから引くので、組んだものと名乗る名前が食い違わない。
+# 配布するのは arm64 のみ。ここから引くので、組んだものと名乗る名前が食い違わない。
 arch := "arm64"
 rust_target := if arch == "arm64" { "aarch64-apple-darwin" } else if arch == "x86_64" { "x86_64-apple-darwin" } else { error("arch は arm64 か x86_64 のどちらか") }
 app_dist := "target/mdo.app-" + version + "-macos-" + arch + ".zip"
@@ -106,8 +104,6 @@ check-app: build-app
     echo "版 $version / {{arch}} / macOS $declared 以上"
 
 # 版は sed と shell に素通しで埋まり、配布物の名前にもなる。形をここで確かめる。
-# 見張る相手は `just version=...` で手渡された値。git から引いた版は上で形を
-# 絞ってあるので、ここに届く時点で既に x.y.z か 0.0.0 になっている。
 # quote を通してから shell 変数に受けるのは、検査する前の値を shell の語として
 # 展開すると、検査より先にその中身が実行されるため。quote が返すのは単引用符付きの
 # 値なので、それをさらに引用符の中に置くと引用が無効になり同じ穴が開く。
