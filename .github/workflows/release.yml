@@ -219,7 +219,7 @@ jobs:
             fi
           }
 
-          update Casks/mdo.rb "$APP_SHA256" "$APP_NAME"
+          update Casks/mdo-app.rb "$APP_SHA256" "$APP_NAME"
           update mdo.rb "$CLI_SHA256" "$CLI_NAME"
 
       - name: Publish the release
@@ -232,13 +232,13 @@ jobs:
       - name: Push the tap
         working-directory: tap
         run: |
-          if git diff --quiet -- Casks/mdo.rb mdo.rb; then
+          if git diff --quiet -- Casks/mdo-app.rb mdo.rb; then
             echo "tap は既にこのリリースを指している"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit Casks/mdo.rb mdo.rb -m "Update mdo formula and cask to $GITHUB_REF_NAME"
+          git commit Casks/mdo-app.rb mdo.rb -m "Update mdo formula and cask to $GITHUB_REF_NAME"
           # 同じ tap を gw と ediro のリリースも書くので、間に入られていたら載せ直す。
           # rebase と push の間にも入られうるので、諦める前に何度か試す。
           pushed=""
