@@ -10,6 +10,22 @@ mdo file.md
 
 Finder で md ファイルを `mdo.app` に渡しても同じ結果になる。
 
+## インストール
+
+`mdo` コマンドを入れる:
+
+```
+brew install gin0606/tap/mdo
+```
+
+`mdo.app` は Finder から開くときだけ要るもので、別の cask になっている:
+
+```
+brew install --cask gin0606/tap/mdo-app
+```
+
+`mdo.app` は md ファイルの既定のアプリにはならないので、macOS が元から使っているアプリのままになる。「このアプリケーションで開く」から選ぶか、アプリにファイルをドロップする。
+
 ## 制限
 
 いずれも設計上の選択で、知らずに使うと驚くもの。

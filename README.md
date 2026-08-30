@@ -10,6 +10,22 @@ mdo file.md
 
 Handing an md file to `mdo.app` from Finder does the same thing.
 
+## Install
+
+Install the `mdo` command:
+
+```
+brew install gin0606/tap/mdo
+```
+
+`mdo.app` is only needed to open files from Finder, and comes from a separate cask:
+
+```
+brew install --cask gin0606/tap/mdo-app
+```
+
+`mdo.app` does not make itself the default for Markdown files, so macOS keeps whatever it was already opening them with. Use Open With, or drop the file onto the app.
+
 ## Limitations
 
 All of these are deliberate choices, and all of them are surprising if you run into them unaware.
