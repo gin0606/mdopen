@@ -9,12 +9,17 @@ license = "MIT OR Apache-2.0"
 # 配布は Homebrew から行うので crates.io には出さない。
 publish = false
 
+# パッケージ名 mdopen は CLI と app を含む一式の名前。CLI そのものは変換しか
+# しないので、コマンド名は役割を言う mdhtml にする。
+[[bin]]
+name = "mdhtml"
+path = "src/main.rs"
+
 [dependencies]
 comrak = { version = "0.54", default-features = false, features = [
     "shortcodes",
     "syntect-fancy",
 ] }
-opener = "0.8"
 sha2 = "0.10"
 
 [profile.release]

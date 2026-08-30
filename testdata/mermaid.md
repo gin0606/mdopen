@@ -4,11 +4,11 @@
 
 ```mermaid
 flowchart TD
-    A[mdopen file.md] --> B[Markdown を解析]
+    A[mdhtml file.md] --> B[Markdown を解析]
     B --> C{mermaid がある?}
     C -->|yes| D[mermaid.js を埋め込む]
     C -->|no| E[JS ゼロの HTML]
-    D --> F[ブラウザで開く]
+    D --> F[置き場のパスを返す]
     E --> F
 ```
 
@@ -17,11 +17,12 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     participant U as 利用者
-    participant M as mdopen
+    participant M as mdhtml
     participant B as ブラウザ
-    U->>M: mdopen plan.md
+    U->>M: mdhtml plan.md
     M->>M: HTML に変換
-    M->>B: open
+    M-->>U: 置き場のパス
+    U->>B: open
     B-->>U: 表示
 ```
 

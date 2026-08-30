@@ -219,8 +219,8 @@ jobs:
             fi
           }
 
-          update Casks/mdopen-app.rb "$APP_SHA256" "$APP_NAME"
-          update mdopen.rb "$CLI_SHA256" "$CLI_NAME"
+          update Casks/mdopen.rb "$APP_SHA256" "$APP_NAME"
+          update mdhtml.rb "$CLI_SHA256" "$CLI_NAME"
 
       - name: Publish the release
         env:
@@ -232,13 +232,13 @@ jobs:
       - name: Push the tap
         working-directory: tap
         run: |
-          if git diff --quiet -- Casks/mdopen-app.rb mdopen.rb; then
+          if git diff --quiet -- Casks/mdopen.rb mdhtml.rb; then
             echo "tap は既にこのリリースを指している"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit Casks/mdopen-app.rb mdopen.rb -m "Update mdopen formula and cask to $GITHUB_REF_NAME"
+          git commit Casks/mdopen.rb mdhtml.rb -m "Update the mdhtml formula and mdopen cask to $GITHUB_REF_NAME"
           # 同じ tap を gw と ediro のリリースも書くので、間に入られていたら載せ直す。
           # rebase と push の間にも入られうるので、諦める前に何度か試す。
           pushed=""

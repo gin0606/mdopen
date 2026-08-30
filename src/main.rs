@@ -1,15 +1,16 @@
 use std::fmt;
 use std::fs;
-use std::io::Write as _;
+use std::io::Write;
+use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: mdopen <file.md>";
+const USAGE: &str = "usage: mdhtml <file.md>";
 
 const HELP: &str = "\
-Markdown を HTML 1 枚に変換して、既定のブラウザで開く。
+Markdown を HTML 1 枚に変換して、その置き場のパスを返す。
 
-usage: mdopen <file.md>
+usage: mdhtml <file.md>
 
 options:
   -h, --help     使い方を表示する
@@ -26,7 +27,7 @@ fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("mdopen: {error}");
+            eprintln!("mdhtml: {error}");
             ExitCode::FAILURE
         }
     }
@@ -38,7 +39,7 @@ fn run() -> Result<(), Error> {
         return Err(Error::Usage);
     };
 
-    // 引数はファイル 1 つだけなので、`--` 区切りは持たない。`-foo.md` は `./-foo.md` で開く。
+    // 引数はファイル 1 つだけなので、`--` 区切りは持たない。`-foo.md` は `./-foo.md` と書く。
     if let Some(flag) = input.to_str().filter(|arg| arg.starts_with('-')) {
         return match flag {
             "-h" | "--help" => {
@@ -46,7 +47,7 @@ fn run() -> Result<(), Error> {
                 Ok(())
             }
             "-V" | "--version" => {
-                println!("mdopen {VERSION}");
+                println!("mdhtml {VERSION}");
                 Ok(())
             }
             _ => Err(Error::Usage),
@@ -75,7 +76,7 @@ fn run() -> Result<(), Error> {
     let base_dir = source.parent().unwrap_or(Path::new("."));
     let rendered = mdopen::render(&markdown, &title, base_dir);
     for warning in &rendered.warnings {
-        eprintln!("mdopen: 警告: {warning}");
+        eprintln!("mdhtml: 警告: {warning}");
     }
 
     let destination = mdopen::output_path(&source);
@@ -84,10 +85,17 @@ fn run() -> Result<(), Error> {
         source: error,
     })?;
 
-    opener::open(&destination).map_err(|source| Error::Open {
-        path: destination,
-        source,
-    })
+    write_path(&mut std::io::stdout().lock(), &destination)
+        .map_err(|source| Error::Print { source })
+}
+
+/// 変換結果の置き場を 1 行返す。開くのは受け取った側の仕事。
+///
+/// 受け取った側はこのパスをそのまま `open` に渡す。`display()` は UTF-8 でないバイトを
+/// 置換文字に潰すので、書き出した先とは別のパスを名乗ってしまう。
+fn write_path(out: &mut impl Write, path: &Path) -> std::io::Result<()> {
+    out.write_all(path.as_os_str().as_bytes())?;
+    out.write_all(b"\n")
 }
 
 /// 変換結果を書き出す。ディレクトリとファイルは所有者だけが読める権限で作る。
@@ -133,9 +141,8 @@ enum Error {
         path: PathBuf,
         source: std::io::Error,
     },
-    Open {
-        path: PathBuf,
-        source: opener::OpenError,
+    Print {
+        source: std::io::Error,
     },
 }
 
@@ -148,8 +155,8 @@ impl fmt::Display for Error {
             Error::Write { path, source } => {
                 write!(f, "{} に書き出せません: {source}", path.display())
             }
-            Error::Open { path, source } => {
-                write!(f, "{} をブラウザで開けません: {source}", path.display())
+            Error::Print { source } => {
+                write!(f, "変換結果のパスを出力できません: {source}")
             }
         }
     }
@@ -160,7 +167,7 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mdopen-test-{}-{name}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("mdhtml-test-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
