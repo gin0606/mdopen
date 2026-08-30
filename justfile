@@ -156,3 +156,53 @@ dist-cli: check-releasable check-app
     rm -f {{cli_dist}}
     COPYFILE_DISABLE=1 tar -czf {{cli_dist}} -C {{app}}/Contents/MacOS mdo
     @shasum -a 256 {{cli_dist}}
+
+# 公証は Apple のサーバとやりとりするので、鍵を持つリリースの workflow からしか
+# 通せない。前提はビルドより先に見る。zip まで作ってから鍵の不足で落ちると、
+# そこまでの数分が無駄になる。空の secret を復号しても 0 バイトのファイルは
+# 残るので、鍵は中身の有無まで見る。
+[private]
+check-notary:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ {{quote(sign_identity)}} = "-" ]; then
+      echo "公証には Developer ID の署名が要ります (just sign_identity=... で渡す)" >&2
+      exit 1
+    fi
+    if [ ! -s "${NOTARY_KEY:-}" ]; then
+      echo "NOTARY_KEY が指す鍵ファイルが空か存在しません" >&2
+      exit 1
+    fi
+    if [ -z "${NOTARY_KEY_ID:-}" ] || [ -z "${NOTARY_ISSUER_ID:-}" ]; then
+      echo "NOTARY_KEY_ID / NOTARY_ISSUER_ID を環境変数で渡してください" >&2
+      exit 1
+    fi
+
+# staple 前の zip を配ると、Gatekeeper が初回起動のたびに Apple へ問い合わせに行く。
+# チケットを綴じてから zip を作り直す。spctl はチケットが無くてもオンラインの照会で
+# 通してしまうので、綴じられたことは stapler validate の側で見る。
+[private]
+notarize: check-notary dist-app
+    xcrun notarytool submit {{app_dist}} --key "$NOTARY_KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" --wait --timeout 30m
+    xcrun stapler staple {{app}}
+    rm -f {{app_dist}}
+    ditto -c -k --keepParent {{app}} {{app_dist}}
+    codesign --verify --strict {{app}}
+    xcrun stapler validate {{app}}
+    spctl -a -vv -t exec {{app}}
+    @echo "staple 済みの配布物:"
+    @shasum -a 256 {{app_dist}}
+
+# 1 回の just で通すのは、間に build-app を挟み直すと bundle が組み直されて、
+# 綴じたチケットも .app の zip も無効になるため。
+[doc("公証まで済ませた配布物を両方作る")]
+release: check-notary check notarize dist-cli
+
+# リリースの workflow が配布物の在処を読む
+[private]
+dist-app-path:
+    @echo {{app_dist}}
+
+[private]
+dist-cli-path:
+    @echo {{cli_dist}}

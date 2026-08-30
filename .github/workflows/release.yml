@@ -1,0 +1,258 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    # 公証の待ち (justfile の notarytool --timeout) に加えて、その前に走る
+    # 冷えた cargo のビルドとテストを収める。
+    timeout-minutes: 75
+
+    env:
+      # keychain には import した 1 枚しか入らないので、codesign が識別名を
+      # 解決するには種別だけで足りる。
+      SIGN_IDENTITY: "Developer ID Application"
+
+    defaults:
+      run:
+        # 既定の `bash -e` は pipefail を立てないため、パイプ左辺の失敗が
+        # 空文字として下流に流れる。
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Rust と Xcode は runner に入っているが just は入っていない。
+      - name: Install just
+        run: brew install just
+
+      - name: Show the toolchain
+        run: |
+          xcodebuild -version
+          cargo --version
+          just --version
+
+      # 整数 3 つの形に限る。CFBundleVersion はこれより緩い値も受けるが、v0.1.4 の
+      # ドットを落とした v0.14 は 0.14 として tap に載り、次に出す版を brew が
+      # 降格とみなす。形だけを見るので、版の大小は確かめていない。
+      - name: Check the tag
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "タグ $GITHUB_REF_NAME が x.y.z の形をしていません" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # tap 用の鍵が生きていることをビルドより先に確かめる。切れていたことに
+      # 気づくのが公証を終えた後だと、そこまでの数十分と Apple への submit が
+      # 無駄になる。見ているのは token を取れるかどうかまでで、権限の中身までは
+      # 確かめていない。実際に使う token は後で取り直す。ここで取ったものは
+      # 1 時間で切れるので、間にビルドを挟むと push の時点で期限を過ぎうる。
+      - name: Check the tap credentials
+        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: gin0606
+          repositories: homebrew-tap
+
+      # 鍵は runner 限りの keychain に置く。後始末は runner の破棄に任せる。
+      - name: Import the signing certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(openssl rand -base64 24)"
+          p12="$RUNNER_TEMP/certificate.p12"
+          # 途中で落ちても復号した鍵を残さない。
+          trap 'rm -f "$p12"' EXIT
+          (umask 077; printf '%s' "$CERT_P12_BASE64" | base64 --decode > "$p12")
+          security create-keychain -p "$keychain_password" "$keychain"
+          # 既定では数分で自動ロックされ、その後の codesign が鍵を引けなくなる。
+          security set-keychain-settings "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$p12" -k "$keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          # codesign が確認を求めずに鍵を使えるようにする。
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          # 取り違えた secret でも import 自体は通る。1 枚に定まらなければ
+          # codesign が識別名を解決できないので、署名に入る前に弾く。
+          found="$(security find-identity -v -p codesigning "$keychain" |
+            grep -cF "$SIGN_IDENTITY" || true)"
+          if [ "$found" != "1" ]; then
+            echo "$SIGN_IDENTITY の鍵が $found 枚あります (1 枚であるべき)" >&2
+            exit 1
+          fi
+
+      # fmt・lint・テストも just release の中で走る。
+      - name: Build and notarize the distribution archives
+        id: dist
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          NOTARY_KEY="$RUNNER_TEMP/notary.p8"
+          export NOTARY_KEY
+          trap 'rm -f "$NOTARY_KEY"' EXIT
+          # umask は復号だけに掛ける。step 全体に効かせると、この後 just が作る
+          # .app のパーミッションまで 700/600 に落ち、それが zip に載る。
+          (umask 077; printf '%s' "$NOTARY_KEY_P8_BASE64" | base64 --decode > "$NOTARY_KEY")
+          just version="$VERSION" sign_identity="$SIGN_IDENTITY" release
+          # 置換を echo の引数の中で行うと、just が落ちても echo は成功して
+          # 空のパスが下流に流れる。先に変数へ受けて set -e に見せる。
+          app="$(just version="$VERSION" dist-app-path)"
+          cli="$(just version="$VERSION" dist-cli-path)"
+          test -s "$app"
+          test -s "$cli"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "cli=$cli" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: gin0606
+          repositories: homebrew-tap
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: gin0606/homebrew-tap
+          token: ${{ steps.app-token.outputs.token }}
+          path: tap
+
+      # リリースは draft のまま組み立てる。公開は取り消せないので、失敗しうる工程
+      # (配布物の upload・tap の書き換え) をすべて済ませてから最後に公開する。
+      #
+      # 同じタグでやり直したときは配布物を差し替える。draft のうちは誰も手にして
+      # いないので、置き換えて困る相手が居ない。公開済みのものを流用しないぶん、
+      # tap に載る digest は必ず今組んだものと一致する。
+      - name: Upload the archives to a draft release
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP: ${{ steps.dist.outputs.app }}
+          CLI: ${{ steps.dist.outputs.cli }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # 差し替えてよいのは draft のうちだけ。公開済みのものを差し替えると、
+            # 既に手にした人の持つ digest が tap の言う値と食い違う。
+            if [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft')" != "true" ]; then
+              echo "$GITHUB_REF_NAME は既に公開されている。配布物は差し替えない。" >&2
+              echo "tap だけ直すか、リリースを消してからやり直す。" >&2
+              exit 1
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --generate-notes
+          fi
+          gh release upload "$GITHUB_REF_NAME" "$APP" "$CLI" --clobber
+
+          for key in app cli; do
+            case "$key" in
+              app) path="$APP" ;;
+              cli) path="$CLI" ;;
+            esac
+            sha256="$(shasum -a 256 "$path" | cut -d ' ' -f 1)"
+            if ! grep -qE '^[0-9a-f]{64}$' <<<"$sha256"; then
+              echo "$path の sha256 を取れませんでした" >&2
+              exit 1
+            fi
+            echo "${key}_name=$(basename "$path")" >> "$GITHUB_OUTPUT"
+            echo "${key}_sha256=$sha256" >> "$GITHUB_OUTPUT"
+          done
+
+      # 書き換えと検証だけを行い、commit はしない。tap が壊れていること
+      # (ファイルが動いた・書き換える行が無い・url が配布物名と合わない) は
+      # ここで分かるので、公開より前に落ちる。
+      - name: Point the tap at the release
+        working-directory: tap
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          APP_NAME: ${{ steps.publish.outputs.app_name }}
+          APP_SHA256: ${{ steps.publish.outputs.app_sha256 }}
+          CLI_NAME: ${{ steps.publish.outputs.cli_name }}
+          CLI_SHA256: ${{ steps.publish.outputs.cli_sha256 }}
+        run: |
+          update() {
+            file="$1"
+            sha256="$2"
+            asset="$3"
+            # 遅いリリースが速いリリースを追い越すと、tap が古い版に巻き戻る。
+            # 追い越された側は checkout の時点で新しい版を見ているので、ここで気づく。
+            current="$(sed -n 's/^  version "\(.*\)"$/\1/p' "$file")"
+            if [ "$current" != "$VERSION" ] &&
+               [ "$(printf '%s\n%s\n' "$current" "$VERSION" | sort -V | tail -1)" = "$current" ]; then
+              echo "$file は既に $current を指しており、$VERSION はそれより古い" >&2
+              return 1
+            fi
+            sed -i '' \
+              -e "s/^  version \".*\"\$/  version \"$VERSION\"/" \
+              -e "s/^  sha256 \".*\"\$/  sha256 \"$sha256\"/" \
+              "$file"
+            if ! grep -q "^  version \"$VERSION\"\$" "$file" ||
+               ! grep -q "^  sha256 \"$sha256\"\$" "$file"; then
+              echo "$file の version / sha256 を書き換えられませんでした" >&2
+              return 1
+            fi
+            # url は sed で触らないので、配布物名との結合はここで見る。タグの
+            # 区間まで見るのは、そこが版と連動していない url でも配布物名だけは
+            # 合ってしまい、公開してから 404 になるため。
+            # grep へ直接繋がないのは、grep -q が先に抜けると sed が SIGPIPE で
+            # 落ち、pipefail がそれを掴んで一致を不一致として報告するため。
+            rendered="$(sed "s/#{version}/$VERSION/g" "$file")"
+            if ! grep -qF "/$GITHUB_REF_NAME/$asset\"" <<<"$rendered"; then
+              echo "$file の url が $GITHUB_REF_NAME/$asset と一致しません" >&2
+              return 1
+            fi
+          }
+
+          update Casks/mdo.rb "$APP_SHA256" "$APP_NAME"
+          update mdo.rb "$CLI_SHA256" "$CLI_NAME"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+
+      # 公開の後に置くのは、tap が公開されていないリリースを指す時間を作らない
+      # ため。ここで落ちてもリリース自体は正しく、brew は前の版を配り続ける。
+      - name: Push the tap
+        working-directory: tap
+        run: |
+          if git diff --quiet -- Casks/mdo.rb mdo.rb; then
+            echo "tap は既にこのリリースを指している"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit Casks/mdo.rb mdo.rb -m "Update mdo formula and cask to $GITHUB_REF_NAME"
+          # 同じ tap を gw と ediro のリリースも書くので、間に入られていたら載せ直す。
+          # rebase と push の間にも入られうるので、諦める前に何度か試す。
+          pushed=""
+          for _ in 1 2 3; do
+            # 前の試行が rebase の途中で止まっていると、以降の pull が
+            # 「rebase in progress」で即座に落ち、3 回とも同じ理由で潰れる。
+            git rebase --abort 2>/dev/null || true
+            if git pull --rebase && git push; then
+              pushed=yes
+              break
+            fi
+            sleep 5
+          done
+          if [ -z "$pushed" ]; then
+            echo "tap への push が通りませんでした" >&2
+            exit 1
+          fi
