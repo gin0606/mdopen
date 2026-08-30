@@ -1,5 +1,15 @@
 app := "target/mdo.app"
 
+default: check
+
+check: fmt-check lint test
+
+fmt-check:
+    cargo fmt --check
+
+lint:
+    cargo clippy --all-targets -- -D warnings
+
 # CLI をリリースビルドする
 build:
     cargo build --release
