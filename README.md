@@ -2,9 +2,7 @@
 
 [日本語](README.ja.md)
 
-Convert a Markdown file into a single HTML page.
-
-`mdhtml` writes the page and prints where it put it:
+Convert a Markdown file into a single HTML page and print where it went.
 
 ```
 mdhtml file.md
@@ -27,21 +25,6 @@ brew install --cask gin0606/tap/mdopen
 ```
 
 `mdopen.app` does not make itself the default for Markdown files, so macOS keeps whatever it was already opening them with. Use Open With, or drop the file onto the app.
-
-## Converting and opening in one word
-
-`mdhtml` stops at printing the path, so the shortcut is yours to name. Take the path in a variable so a failed conversion stops there. Inlined, the failure passes straight through to `open`: the bash form opens nothing and still exits 0, and the fish form buries the diagnostic under `open`'s usage:
-
-```fish
-function mdopen
-    set -l page (mdhtml $argv) || return
-    open $page
-end
-```
-
-```bash
-mdopen() { local page; page=$(mdhtml "$1") && open "$page"; }
-```
 
 ## Limitations
 
