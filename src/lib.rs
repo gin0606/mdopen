@@ -78,8 +78,8 @@ pub fn render(markdown: &str, title: &str, base_dir: &Path) -> Rendered {
                     link.url = path.to_string();
                 }
             }
-            NodeValue::HtmlBlock(block) => dropped_html |= !is_comment(&block.literal),
-            NodeValue::HtmlInline(literal) => dropped_html |= !is_comment(literal),
+            NodeValue::HtmlBlock(block) => dropped_html |= !contains_only_comments(&block.literal),
+            NodeValue::HtmlInline(literal) => dropped_html |= !contains_only_comments(literal),
             _ => {}
         }
     }
@@ -144,9 +144,21 @@ fn markdown_options() -> Options<'static> {
     options
 }
 
-/// 出力から落ちても利用者に伝える必要のない生 HTML か。
-fn is_comment(literal: &str) -> bool {
-    literal.trim_start().starts_with("<!--")
+/// 出力から落ちても利用者に伝える必要のない、コメントだけの生 HTML か。
+fn contains_only_comments(mut literal: &str) -> bool {
+    loop {
+        literal = literal.trim_start();
+        let Some(comment) = literal.strip_prefix("<!--") else {
+            return false;
+        };
+        let Some(end) = comment.find("-->") else {
+            return false;
+        };
+        literal = &comment[end + 3..];
+        if literal.trim().is_empty() {
+            return true;
+        }
+    }
 }
 
 /// コードフェンスの言語名。
@@ -550,6 +562,18 @@ mod tests {
             "t.md",
             &testdata(),
         );
+        assert!(rendered.warnings.is_empty(), "{:?}", rendered.warnings);
+    }
+
+    #[test]
+    fn html_after_a_comment_is_reported() {
+        let rendered = render("<!-- note --><br>after\n", "t.md", &testdata());
+        assert_eq!(rendered.warnings, ["生の HTML は出力に含めていません"]);
+    }
+
+    #[test]
+    fn multiple_html_comments_need_no_warning() {
+        let rendered = render("<!-- a --><!-- b -->\n", "t.md", &testdata());
         assert!(rendered.warnings.is_empty(), "{:?}", rendered.warnings);
     }
 
