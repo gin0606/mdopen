@@ -20,6 +20,7 @@ comrak = { version = "0.54", default-features = false, features = [
     "shortcodes",
     "syntect-fancy",
 ] }
+libc = "0.2"
 sha2 = "0.10"
 
 [profile.release]
