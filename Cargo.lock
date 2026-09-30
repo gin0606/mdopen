@@ -249,6 +249,7 @@ checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 name = "mdopen"
 version = "0.0.0"
 dependencies = [
+ "base64",
  "comrak",
  "libc",
  "sha2",

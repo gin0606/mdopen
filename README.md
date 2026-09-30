@@ -32,6 +32,7 @@ All of these are deliberate choices, and all of them are surprising if you run i
 
 - Raw HTML is not included in the output; `<details>` and `<br>` are dropped along with their tags. The converted page is opened over `file://`, so letting a `<script>` or an `<img onerror>` written in the Markdown through would run it in a context that can read local files. When something is dropped, a warning appears at the top of the page
 - Opening a document that contains a mermaid diagram fetches the rendering library from jsdelivr. The fetched content is pinned with SRI, but the connection itself does happen. A document without diagrams loads no JavaScript at all
+- The converted page carries a Content Security Policy that lets only the mermaid library and its startup script run (none at all in a document without diagrams). Even if a script slipped into the output, the browser would refuse to run it
 - Images are referenced rather than embedded. Moving or deleting the original file breaks the page as well
 - Output is never cleaned up. It stays under `$TMPDIR/mdopen/`, readable only by its owner
 

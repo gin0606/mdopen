@@ -16,6 +16,7 @@ name = "mdhtml"
 path = "src/main.rs"
 
 [dependencies]
+base64 = "0.22"
 comrak = { version = "0.54", default-features = false, features = [
     "shortcodes",
     "syntect-fancy",

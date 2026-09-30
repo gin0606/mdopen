@@ -7,6 +7,7 @@ use std::fmt::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use base64::prelude::{BASE64_STANDARD, Engine as _};
 use comrak::adapters::CodefenceRendererAdapter;
 use comrak::nodes::{NodeValue, Sourcepos};
 use comrak::options::{Plugins, URLRewriter};
@@ -332,9 +333,19 @@ fn warning_banner(warnings: &[String]) -> String {
 }
 
 fn assemble(title: &str, body: &str, has_mermaid: bool, warnings: &[String]) -> String {
-    let mut html = String::with_capacity(body.len() + STYLE_CSS.len() + 1024);
+    let mut html = String::with_capacity(body.len() + STYLE_CSS.len() + 2048);
+    // CSP のハッシュと出力する要素の本文を同じ値から作る。食い違うとブラウザは
+    // 起動スクリプトを拒否する。
+    let bootstrap = has_mermaid.then_some(MERMAID_BOOTSTRAP);
 
-    html.push_str("<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n");
+    // CSP の <meta> は自分より後ろにしか効かないので、<head> の先頭に置く。
+    let _ = writeln!(
+        html,
+        "<!DOCTYPE html>\n<html>\n<head>\n\
+         <meta http-equiv=\"Content-Security-Policy\" content=\"{}\">",
+        content_security_policy(bootstrap),
+    );
+    html.push_str("<meta charset=\"utf-8\">\n");
     html.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     let _ = write!(html, "<title>{}</title>\n<style>\n", escape_html(title));
     html.push_str(STYLE_CSS);
@@ -344,11 +355,11 @@ fn assemble(title: &str, body: &str, has_mermaid: bool, warnings: &[String]) -> 
     html.push_str("</article>\n");
 
     // Mermaid を含む入力でだけ読み込ませる。
-    if has_mermaid {
+    if let Some(bootstrap) = bootstrap {
         let _ = write!(
             html,
             "<script src=\"{MERMAID_URL}\" integrity=\"{MERMAID_SRI}\" \
-             crossorigin=\"anonymous\" defer></script>\n<script>\n{MERMAID_BOOTSTRAP}</script>\n",
+             crossorigin=\"anonymous\" defer></script>\n<script>{bootstrap}</script>\n",
         );
     }
 
@@ -356,8 +367,27 @@ fn assemble(title: &str, body: &str, has_mermaid: bool, warnings: &[String]) -> 
     html
 }
 
+/// 生の HTML の除去に見落としがあってもスクリプトを実行させないための多重防御。
+///
+/// `bootstrap` は出力する起動スクリプトの `<script>` 要素の本文そのもの。無ければ
+/// スクリプトを一切許さない。`style-src` と `img-src` は制限しない。mermaid は描画時に
+/// `<style>` と `style` 属性を挿入し、Markdown の画像は外部・`data:`・`file://` のどれも使う。
+fn content_security_policy(bootstrap: Option<&str>) -> String {
+    let script_src = match bootstrap {
+        Some(body) => format!(
+            "{MERMAID_URL} 'sha256-{}'",
+            BASE64_STANDARD.encode(Sha256::digest(body.as_bytes()))
+        ),
+        None => "'none'".to_string(),
+    };
+    format!("script-src {script_src}; object-src 'none'; base-uri 'none'; form-action 'none'")
+}
+
 /// 描画に失敗した図はソースが残るので、利用者からは変換されなかったことが見える。
+///
+/// `<script>` 要素の本文そのもの。CSP のハッシュもこの値から計算する。
 const MERMAID_BOOTSTRAP: &str = concat!(
+    "\n",
     "window.addEventListener(\"load\", function () {\n",
     "  if (typeof mermaid === \"undefined\") return;\n",
     "  try {\n",
@@ -456,6 +486,48 @@ mod tests {
         assert!(rendered.html.contains("mermaid.run("));
         // mermaid があってもコードブロックのハイライトは効いたまま
         assert!(rendered.html.contains("<pre style=\"background-color:"));
+    }
+
+    /// `<head>` の先頭にある CSP の `<meta>` の content を返す。
+    fn csp_at_head_start(html: &str) -> &str {
+        let prefix = "<head>\n<meta http-equiv=\"Content-Security-Policy\" content=\"";
+        let start = html.find(prefix).expect("<head> の先頭に CSP が無い") + prefix.len();
+        let len = html[start..].find('"').unwrap();
+        &html[start..start + len]
+    }
+
+    #[test]
+    fn pages_without_diagrams_allow_no_script() {
+        let html = render_file("plain.md").html;
+        assert_eq!(
+            csp_at_head_start(&html),
+            "script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+        );
+    }
+
+    #[test]
+    fn mermaid_pages_allow_only_the_library_and_the_bootstrap() {
+        let html = render_file("mermaid.md").html;
+        let csp = csp_at_head_start(&html);
+
+        // 出力 HTML から起動スクリプトの本文を取り出して、ブラウザと同じ計算で照合する。
+        let open = "<script>";
+        assert_eq!(
+            html.matches(open).count(),
+            1,
+            "インラインスクリプトは起動スクリプトだけ"
+        );
+        let start = html.find(open).expect("起動スクリプトが無い") + open.len();
+        let body = &html[start..start + html[start..].find("</script>").unwrap()];
+        let hash = BASE64_STANDARD.encode(Sha256::digest(body.as_bytes()));
+
+        assert_eq!(
+            csp,
+            format!(
+                "script-src {MERMAID_URL} 'sha256-{hash}'; \
+                 object-src 'none'; base-uri 'none'; form-action 'none'"
+            )
+        );
     }
 
     #[test]
