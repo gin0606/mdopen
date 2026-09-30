@@ -221,11 +221,6 @@ body {
   white-space: pre;
 }
 
-/* syntect はテーマの背景色を pre にインラインで焼き込む。ページの配色に揃えるため上書きする。 */
-.markdown-body pre[style*="background-color"] {
-  background-color: #f6f8fa !important;
-}
-
 /* mermaid が読み込めなければ図のソースがそのまま残る。そのときは通常のコードブロックとして
    読めればよいので、図としての見た目は描画に成功したときだけ当てる。 */
 .markdown-body pre.mermaid:has(svg) {
