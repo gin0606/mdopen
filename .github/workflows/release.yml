@@ -27,7 +27,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@v6.0.2
 
       # Rust と Xcode は runner に入っているが just は入っていない。
       - name: Install just
@@ -58,7 +58,7 @@ jobs:
       # 確かめていない。実際に使う token は後で取り直す。ここで取ったものは
       # 1 時間で切れるので、間にビルドを挟むと push の時点で期限を過ぎうる。
       - name: Check the tap credentials
-        uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+        uses: actions/create-github-app-token@v3.0.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -120,7 +120,7 @@ jobs:
           echo "app=$app" >> "$GITHUB_OUTPUT"
           echo "cli=$cli" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/create-github-app-token@f8d387b68d61c58ab83c6c016672934102569859 # v3.0.0
+      - uses: actions/create-github-app-token@v3.0.0
         id: app-token
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -128,7 +128,7 @@ jobs:
           owner: gin0606
           repositories: homebrew-tap
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@v6.0.2
         with:
           repository: gin0606/homebrew-tap
           token: ${{ steps.app-token.outputs.token }}
